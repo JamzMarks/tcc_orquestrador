@@ -7,7 +7,6 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
-// Service representa a conexão com o Azure IoT Hub
 type Service struct {
 	client   mqtt.Client
 	deviceID string
