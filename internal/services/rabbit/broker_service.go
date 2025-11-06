@@ -1,7 +1,9 @@
 package rabbit
 
 import (
+	"context"
 	"log"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -12,6 +14,7 @@ type RabbitService struct {
 	queue   string
 }
 
+// NewRabbitService cria conexão e garante que a fila existe
 func NewRabbitService(amqpURL, queueName string) (*RabbitService, error) {
 	conn, err := amqp.Dial(amqpURL)
 	if err != nil {
@@ -45,7 +48,37 @@ func NewRabbitService(amqpURL, queueName string) (*RabbitService, error) {
 	}, nil
 }
 
-// Close fecha a conexão e o canal
+// Publish envia uma mensagem à fila sem esperar resposta (fire-and-forget)
+func (r *RabbitService) Publish(ctx context.Context, body []byte) error {
+	if r.channel == nil {
+		return amqp.ErrClosed
+	}
+
+	// Contexto com timeout (opcional)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	err := r.channel.PublishWithContext(ctx,
+		"",      // exchange vazio → envia direto à fila
+		r.queue, // routing key (nome da fila)
+		false,   // mandatory
+		false,   // immediate
+		amqp.Publishing{
+			ContentType:  "application/json",
+			Body:         body,
+			DeliveryMode: amqp.Persistent, // garante persistência se a fila for durável
+			Timestamp:    time.Now(),
+		},
+	)
+	if err != nil {
+		log.Printf("❌ Erro ao publicar mensagem no RabbitMQ: %v", err)
+		return err
+	}
+
+	log.Printf("📤 Mensagem publicada na fila '%s' (%d bytes)", r.queue, len(body))
+	return nil
+}
+
 func (r *RabbitService) Close() {
 	if r.channel != nil {
 		r.channel.Close()
@@ -55,28 +88,7 @@ func (r *RabbitService) Close() {
 	}
 }
 
-// Consume inicia o consumo de mensagens
-func (r *RabbitService) Consume(handler func(body []byte) error) error {
-	msgs, err := r.channel.Consume(
-		r.queue,
-		"",    // consumer
-		false, // autoAck
-		false, // exclusive
-		false, // noLocal
-		false, // noWait
-		nil,   // args
-	)
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		for msg := range msgs {
-			if err := handler(msg.Body); err != nil {
-				log.Printf("Erro ao processar mensagem: %v", err)
-			}
-		}
-	}()
-
-	return nil
+// ConnClosed verifica se a conexão foi encerrada
+func (r *RabbitService) ConnClosed() bool {
+	return r.conn == nil || r.conn.IsClosed()
 }

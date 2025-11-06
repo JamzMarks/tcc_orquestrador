@@ -17,9 +17,9 @@ type OrquestradorService struct {
 	driver   neo4j.DriverWithContext
 }
 
+// Cria instância do serviço Neo4j
 func NewGraphService(uri, username, password string) *OrquestradorService {
 	driver, err := neo4j.NewDriverWithContext(uri, neo4j.BasicAuth(username, password, ""))
-
 	if err != nil {
 		log.Fatalf("Erro ao criar driver Neo4j: %v", err)
 	}
@@ -31,12 +31,14 @@ func NewGraphService(uri, username, password string) *OrquestradorService {
 	}
 }
 
+// Fecha a conexão com Neo4j
 func (s *OrquestradorService) Close() {
 	if s.driver != nil {
 		s.driver.Close(context.Background())
 	}
 }
 
+// Testa a conexão com uma query simples
 func (s *OrquestradorService) TestConnection() {
 	ctx := context.Background()
 	session := s.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
@@ -54,7 +56,8 @@ func (s *OrquestradorService) TestConnection() {
 	}
 }
 
-func (s *Service) FetchWays(ctx context.Context) ([]*types.OSMWay, error) {
+// FetchWays retorna todas as OSMWays do Neo4j
+func (s *OrquestradorService) FetchWays(ctx context.Context) ([]*types.OSMWay, error) {
 	session := s.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
 	defer session.Close(ctx)
 
@@ -76,12 +79,18 @@ func (s *Service) FetchWays(ctx context.Context) ([]*types.OSMWay, error) {
 	for result.Next(ctx) {
 		record := result.Record()
 
+		id, _ := record.Get("id")
+		name, _ := record.Get("name")
+		priority, _ := record.Get("priority")
+		updatedAt, _ := record.Get("updated_at")
+
 		way := &types.OSMWay{
-			ID:        record.GetByIndex(0).(string),
-			Name:      record.GetByIndex(1).(string),
-			Priority:  toFloat(record.GetByIndex(2)),
-			UpdatedAt: toTime(record.GetByIndex(6)),
+			ID:        fmt.Sprintf("%v", id),
+			Name:      fmt.Sprintf("%v", name),
+			Priority:  toFloat(priority),
+			UpdatedAt: toTime(updatedAt),
 		}
+
 		ways = append(ways, way)
 	}
 
@@ -92,6 +101,7 @@ func (s *Service) FetchWays(ctx context.Context) ([]*types.OSMWay, error) {
 	return ways, nil
 }
 
+// Helper para converter para float64
 func toFloat(v any) float64 {
 	if v == nil {
 		return 0
@@ -106,7 +116,18 @@ func toFloat(v any) float64 {
 	}
 }
 
+// Helper para converter para time.Time
 func toTime(v any) time.Time {
-	t, _ := v.(time.Time)
-	return t
+	if v == nil {
+		return time.Time{}
+	}
+	switch val := v.(type) {
+	case time.Time:
+		return val
+	case string:
+		t, _ := time.Parse(time.RFC3339, val)
+		return t
+	default:
+		return time.Time{}
+	}
 }
