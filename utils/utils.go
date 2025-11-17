@@ -2,7 +2,7 @@ package utils
 
 import "time"
 
-func toFloat(v any) float64 {
+func ToFloat(v any) float64 {
 	if v == nil {
 		return 0
 	}
@@ -16,7 +16,7 @@ func toFloat(v any) float64 {
 	}
 }
 
-func toTime(v any) time.Time {
+func ToTime(v any) time.Time {
 	t, _ := v.(time.Time)
 	return t
 }

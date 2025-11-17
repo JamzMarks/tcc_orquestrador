@@ -7,14 +7,16 @@ import (
 )
 
 type Config struct {
-	DeviceAPI   string
-	RabbitURL   string
-	PollMs      int
-	QueueName   string
-	GraphDBURI  string
-	GraphDBUser string
-	GraphDBPass string
-	Port        int
+	DeviceAPI           string
+	RabbitURL           string
+	PollMs              int
+	QueueName           string
+	GraphDBURI          string
+	GraphDBUser         string
+	GraphDBPass         string
+	IotHubHost          string
+	IotConnectionString string
+	Port                int
 }
 
 func LoadConfig() *Config {
@@ -27,19 +29,24 @@ func LoadConfig() *Config {
 	graphUser := flag.String("graph-db-username", getenv("GRAPH_DB_USERNAME", "neo4j"), "Neo4j username")
 	graphPass := flag.String("graph-db-password", getenv("GRAPH_DB_PASSWORD", "password"), "Neo4j password")
 
+	// iotHubHost := flag.String("iot-hub-hostname", getenv("IOT_HUB_HOST", "tcc-traffic-light.azure-devices.net"), "Iot Hub")
+	IotConnectionString := flag.String("iot_connection_string", getenv("AZURE_IOTHUB_CONNECTION_STRING", "connection_string"), "Connection sting")
+
 	port := flag.Int("port", atoiDefault(getenv("PORT", "7474"), 7474), "HTTP service port")
 
 	flag.Parse()
 
 	return &Config{
-		DeviceAPI:   *deviceAPI,
-		RabbitURL:   *rabbitURL,
-		PollMs:      *pollMs,
-		QueueName:   *queue,
-		GraphDBURI:  *graphURI,
-		GraphDBUser: *graphUser,
-		GraphDBPass: *graphPass,
-		Port:        *port,
+		DeviceAPI:           *deviceAPI,
+		RabbitURL:           *rabbitURL,
+		PollMs:              *pollMs,
+		QueueName:           *queue,
+		GraphDBURI:          *graphURI,
+		GraphDBUser:         *graphUser,
+		GraphDBPass:         *graphPass,
+		IotHubHost:          "tcc-traffic-light.azure-devices.net",
+		IotConnectionString: *IotConnectionString,
+		Port:                *port,
 	}
 }
 

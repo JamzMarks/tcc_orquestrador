@@ -3,18 +3,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: injector
+    container_name: orquestrador
     environment:
-      - PORT=${INJECTOR_PORT}
+      - PORT=${PORT}
       - AMQP_URL=${AMQP_URL}
       - QUEUE_NAME=${QUEUE_NAME}
       - GRAPH_DB_URI=${GRAPH_DB_URI}
       - GRAPH_DB_USERNAME=${GRAPH_DB_USERNAME}
       - GRAPH_DB_PASSWORD=${GRAPH_DB_PASSWORD}
-      - AZURE_IOT_HOST=${AZURE_IOT_HOST}
-      - AZURE_IOT_DEVICE_ID=${AZURE_IOT_DEVICE_ID}
-      - AZURE_IOT_USERNAME=${AZURE_IOT_USERNAME}
-      - AZURE_IOT_PASSWORD=${AZURE_IOT_PASSWORD}
+      - IOT_HUB_HOST=${IOT_HUB_HOST}
+      - AZURE_IOTHUB_CONNECTION_STRING=${AZURE_IOTHUB_CONNECTION_STRING}
     ports:
-      - "${INJECTOR_PORT}:${INJECTOR_PORT}"
+      - "${PORT}:${PORT}"
     restart: unless-stopped

@@ -17,7 +17,7 @@ RUN go mod download
 COPY . .
 
 # Compilar o binário
-RUN go build -o injector .
+RUN go build -o orquestrador .
 
 # ===========================
 # Etapa 2: Runtime (imagem final)
@@ -28,10 +28,10 @@ FROM alpine:3.20
 WORKDIR /app
 
 # Copiar o binário do build anterior
-COPY --from=builder /app/injector .
+COPY --from=builder /app/orquestrador .
 
 # Expor porta (caso o serviço tenha HTTP)
 EXPOSE 8080
 
 # Comando padrão
-CMD ["./injector"]
+CMD ["./orquestrador"]
