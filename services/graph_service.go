@@ -37,21 +37,24 @@ func (s *OrquestradorService) Close() {
 	}
 }
 
-func (s *OrquestradorService) TestConnection() {
+func (s *OrquestradorService) TestConnection() error {
 	ctx := context.Background()
 	session := s.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
 	defer session.Close(ctx)
 
 	result, err := session.Run(ctx, "RETURN 'Conexão OK!' AS message", nil)
 	if err != nil {
-		log.Fatalf("Erro ao executar query: %v", err)
+		return fmt.Errorf("Erro ao executar query: %v", err)
 	}
 
 	if result.Next(ctx) {
 		fmt.Println(result.Record().Values[0])
 	} else if err = result.Err(); err != nil {
-		log.Fatalf("Erro ao ler resultado: %v", err)
+		return fmt.Errorf("Erro ao ler resultado: %v", err)
+
 	}
+	return nil
+
 }
 
 func (s *OrquestradorService) FetchPacks(ctx context.Context) ([]types.Pack, error) {
@@ -79,7 +82,7 @@ func (s *OrquestradorService) FetchPacks(ctx context.Context) ([]types.Pack, err
 		record := result.Record()
 
 		packID, _ := record.Get("packId")
-		cycle, _ := record.Get("cycle")
+		cycle, _ := record.Get("cicle")
 
 		pack := types.Pack{
 			ID:    packID.(string),
