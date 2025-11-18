@@ -17,11 +17,6 @@ import (
 	"github.com/JamzMarks/tcc_orquestrador/types"
 )
 
-type Operation struct {
-	MinorPackCicle int32
-	MajorPackCicle int32
-}
-
 type OnServices struct {
 	Iot   *iothub.Service
 	Mq    *rabbit.RabbitService
@@ -34,27 +29,63 @@ func main() {
 	defer stop()
 
 	packChan := make(chan types.Pack, 100)
+	eventChan := make(chan struct{}, 10) // notifica “chegou evento analysis.completed”
 
 	numWorkers := 10
 	for i := range numWorkers {
 		go worker(ctx, i, packChan, svcs)
 	}
 
+	go func() {
+		svcs.Mq.Consume("analysis.to.orchestrator", func(body []byte) error {
+			// body pode conter informações do pack, mas você só precisa saber que houve conclusão
+			select {
+			case eventChan <- struct{}{}:
+			default:
+			}
+			return nil
+		})
+	}()
+
+	timeout := 5 * time.Minute
+	timer := time.NewTimer(timeout)
+
 	for {
-		packs, err := svcs.Graph.FetchPacks(ctx)
-		if err != nil {
-			log.Printf("Erro ao buscar packs: %v", err)
-			time.Sleep(5 * time.Second)
-			continue
+		select {
+		case <-ctx.Done():
+			log.Println("Shutdown...")
+			return
+
+		case <-eventChan:
+			log.Println("📨 Evento recebido: analysis.completed")
+			fetchAndDispatch(ctx, svcs, packChan)
+
+			// reseta o timer
+			if !timer.Stop() {
+				<-timer.C
+			}
+			timer.Reset(timeout)
+
+		case <-timer.C:
+			log.Println("⏲️ 5 minutos sem eventos → sincronizando")
+			fetchAndDispatch(ctx, svcs, packChan)
+			timer.Reset(timeout)
 		}
 
-		log.Printf("📦 Total de packs encontrados: %d", len(packs))
+	}
+}
 
-		for _, pack := range packs {
-			packChan <- pack
-		}
+func fetchAndDispatch(ctx context.Context, svcs *OnServices, packChan chan<- types.Pack) {
+	packs, err := svcs.Graph.FetchPacks(ctx)
+	if err != nil {
+		log.Printf("Erro ao buscar packs: %v", err)
+		return
+	}
 
-		time.Sleep(60 * time.Second)
+	log.Printf("📦 Total de packs encontrados: %d", len(packs))
+
+	for _, pack := range packs {
+		packChan <- pack
 	}
 }
 
@@ -208,6 +239,21 @@ func processPack(ctx context.Context, p types.Pack, iot *iothub.Service, mq *rab
 
 			if err := iot.Publish(topic, msg); err != nil {
 				fmt.Printf("[ERRO IoT] %s: %v\n", deviceID, err)
+
+				// TELEMETRIA de erro
+				rk := "telemetry.signal.fail"
+				telemetry := types.TelemetryError{
+					DeviceID:  deviceID,
+					Payload:   msg,
+					ErrorMsg:  "IoT publish failed",
+					Timestamp: time.Now(),
+					Module:    "orquestrator",
+					Event:     "Publish message iot",
+				}
+				msgFail, _ := json.Marshal(telemetry)
+				if err := mq.Publish("telemetry.events", rk, msgFail); err != nil {
+					fmt.Printf("[ERRO Rabbit Telemetry] %s: %v\n", deviceID, err)
+				}
 			}
 
 			listener := types.ListenerCommand{
@@ -217,7 +263,9 @@ func processPack(ctx context.Context, p types.Pack, iot *iothub.Service, mq *rab
 
 			msgRabbit, _ := json.Marshal(listener)
 
-			if err := mq.Publish("device_events", msgRabbit); err != nil {
+			rk := fmt.Sprintf("signal.update.%s", deviceID)
+
+			if err := mq.Publish("signal.events", rk, msgRabbit); err != nil {
 				fmt.Printf("[ERRO Rabbit] %s: %v\n", deviceID, err)
 			}
 

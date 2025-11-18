@@ -65,7 +65,26 @@ func (r *RabbitService) ConsumeMultiple(queues []string, handler func(queue stri
 	return nil
 }
 
-func (r *RabbitService) Publish(queue string, body []byte) error {
+// func (r *RabbitService) Publish(queue string, body []byte) error {
+// 	ch, err := r.conn.Channel()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer ch.Close()
+
+//		return ch.Publish(
+//			"",    // exchange padrão
+//			queue, // routing key = nome da fila
+//			false, // mandatory
+//			false, // immediate
+//			amqp.Publishing{
+//				ContentType: "application/json",
+//				Body:        body,
+//			},
+//		)
+//	}
+func (r *RabbitService) Publish(exchange, routingKey string, body []byte) error {
+
 	ch, err := r.conn.Channel()
 	if err != nil {
 		return err
@@ -73,10 +92,10 @@ func (r *RabbitService) Publish(queue string, body []byte) error {
 	defer ch.Close()
 
 	return ch.Publish(
-		"",    // exchange padrão
-		queue, // routing key = nome da fila
-		false, // mandatory
-		false, // immediate
+		exchange,
+		routingKey,
+		false,
+		false,
 		amqp.Publishing{
 			ContentType: "application/json",
 			Body:        body,

@@ -1,0 +1,124 @@
+{
+  "vhosts": [{ "name": "/" }],
+  "users": [
+    {
+      "name": "user",
+      "password":"password"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "user",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "policies": [
+    {
+      "vhost": "/",
+      "name": "DLQ",
+      "pattern": "^.*$",
+      "apply-to": "queues",
+      "definition": {
+        "dead-letter-exchange": "error.events"
+      },
+      "priority": 0
+    }
+  ],
+  "exchanges": [
+        { "name": "sensor.events",          "vhost": "/", "type": "topic", "durable": true },
+        { "name": "pipeline.events",        "vhost": "/", "type": "topic", "durable": true },
+        { "name": "analysis.events",        "vhost": "/", "type": "topic", "durable": true },
+        { "name": "signal.events",          "vhost": "/", "type": "topic", "durable": true },
+        { "name": "telemetry.events",       "vhost": "/", "type": "topic", "durable": true },
+        { "name": "error.events",           "vhost": "/", "type": "topic", "durable": true }
+    ],
+  "queues": [
+        { "name": "sensor.to.injetor",        "vhost": "/", "durable": true },
+        { "name": "pipeline.telemetry",       "vhost": "/", "durable": true },
+        { "name": "analysis.to.orchestrator", "vhost": "/", "durable": true },
+        { "name": "analysis.telemetry",       "vhost": "/", "durable": true },
+        { "name": "analysis.ways",            "vhost": "/", "durable": true },
+        { "name": "orchestrator.to.iot",      "vhost": "/", "durable": true },
+        { "name": "commands.telemetry",       "vhost": "/", "durable": true },
+        { "name": "telemetry.logger",         "vhost": "/", "durable": true },
+        { "name": "telemetry.websocket",      "vhost": "/", "durable": true },
+        { "name": "error.handler",            "vhost": "/", "durable": true }
+    ],
+  "bindings": [
+    {
+        "source": "sensor.events",
+        "destination": "sensor.to.injetor",
+        "destination_type": "queue",
+        "routing_key": "sensor.raw"
+    },
+    {
+        "source": "sensor.events",
+        "destination": "sensor.to.injetor",
+        "destination_type": "queue",
+        "routing_key": "sensor.device.*"
+    },
+    {
+        "source": "pipeline.events",
+        "destination": "pipeline.telemetry",
+        "destination_type": "queue",
+        "routing_key": "pipeline.*"
+    },
+    {
+        "source": "analysis.events",
+        "destination": "analysis.to.orchestrator",
+        "destination_type": "queue",
+        "routing_key": "analysis.completed"
+    },
+    {
+        "source": "analysis.events",
+        "destination": "analysis.to.orchestrator",
+        "destination_type": "queue",
+        "routing_key": "analysis.device.*.priority"
+    },
+    {
+        "source": "analysis.events",
+        "destination": "analysis.telemetry",
+        "destination_type": "queue",
+        "routing_key": "analysis.*"
+    },
+    {
+        "source": "analysis.events",
+        "destination": "analysis.devices",
+        "destination_type": "queue",
+        "routing_key": "analysis.ways.*.priority"
+    },
+    {
+        "source": "signal.events",
+        "destination": "orchestrator.to.iot",
+        "destination_type": "queue",
+        "routing_key": "signal.update.*"
+    },
+    {
+        "source": "signal.events",
+        "destination": "commands.telemetry",
+        "destination_type": "queue",
+        "routing_key": "signal.*"
+    },
+    {
+        "source": "telemetry.events",
+        "destination": "telemetry.logger",
+        "destination_type": "queue",
+        "routing_key": "telemetry.*"
+    },
+    {
+        "source": "telemetry.events",
+        "destination": "telemetry.websocket",
+        "destination_type": "queue",
+        "routing_key": "telemetry.*"
+    },
+    {
+        "source": "error.events",
+        "destination": "error.handler",
+        "destination_type": "queue",
+        "routing_key": "error.*"
+    }
+  ]
+}
