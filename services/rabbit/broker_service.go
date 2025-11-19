@@ -2,6 +2,7 @@ package rabbit
 
 import (
 	"log"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -11,11 +12,17 @@ type RabbitService struct {
 }
 
 func NewRabbitService(amqpURL string) (*RabbitService, error) {
-	conn, err := amqp.Dial(amqpURL)
+	conn, err := amqp.DialConfig(amqpURL, amqp.Config{
+		Heartbeat: 10 * time.Second,
+		Locale:    "en_US",
+	})
+
 	if err != nil {
+		log.Printf("[RabbitMQ] Erro ao conectar: %v", err)
 		return nil, err
 	}
 
+	log.Println("[RabbitMQ] Conexão estabelecida com sucesso")
 	return &RabbitService{conn: conn}, nil
 }
 

@@ -21,32 +21,26 @@ type Config struct {
 
 func LoadConfig() *Config {
 	deviceAPI := flag.String("device-api-url", getenv("DEVICE_API_URL", "http://host.docker.internal:3005/api/v1/camera"), "URL to fetch devices")
-	rabbitURL := flag.String("rabbitmq-url", getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"), "RabbitMQ connection URL")
+	rabbitURL := flag.String("rabbitmq-url", getenv("AMQP_URL", "amqp://guest:guest@localhost:5672/"), "RabbitMQ connection URL")
 	pollMs := flag.Int("poll-ms", atoiDefault(getenv("POLL_MS", "30000"), 30000), "Polling interval")
 	queue := flag.String("queue", getenv("QUEUE_NAME", "injector_queue"), "RabbitMQ queue name")
-
 	graphURI := flag.String("graph-db-uri", getenv("GRAPH_DB_URI", "neo4j://host.docker.internal:7687"), "Neo4j database URI")
 	graphUser := flag.String("graph-db-username", getenv("GRAPH_DB_USERNAME", "neo4j"), "Neo4j username")
 	graphPass := flag.String("graph-db-password", getenv("GRAPH_DB_PASSWORD", "password"), "Neo4j password")
-
-	// iotHubHost := flag.String("iot-hub-hostname", getenv("IOT_HUB_HOST", "tcc-traffic-light.azure-devices.net"), "Iot Hub")
-	IotConnectionString := flag.String("iot_connection_string", getenv("AZURE_IOTHUB_CONNECTION_STRING", "connection_string"), "Connection sting")
 
 	port := flag.Int("port", atoiDefault(getenv("PORT", "7474"), 7474), "HTTP service port")
 
 	flag.Parse()
 
 	return &Config{
-		DeviceAPI:           *deviceAPI,
-		RabbitURL:           *rabbitURL,
-		PollMs:              *pollMs,
-		QueueName:           *queue,
-		GraphDBURI:          *graphURI,
-		GraphDBUser:         *graphUser,
-		GraphDBPass:         *graphPass,
-		IotHubHost:          "tcc-traffic-light.azure-devices.net",
-		IotConnectionString: *IotConnectionString,
-		Port:                *port,
+		DeviceAPI:   *deviceAPI,
+		RabbitURL:   *rabbitURL,
+		PollMs:      *pollMs,
+		QueueName:   *queue,
+		GraphDBURI:  *graphURI,
+		GraphDBUser: *graphUser,
+		GraphDBPass: *graphPass,
+		Port:        *port,
 	}
 }
 
