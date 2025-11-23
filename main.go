@@ -25,7 +25,6 @@ func main() {
 	svcs := Connection()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
 	packChan := make(chan types.Pack, 100)
 	eventChan := make(chan struct{}, 10) // notifica “chegou evento analysis.completed”
 
@@ -33,7 +32,6 @@ func main() {
 	for i := range numWorkers {
 		go worker(ctx, i, packChan, svcs)
 	}
-
 	go func() {
 		if err := svcs.Mq.Consume("analysis.to.orchestrator", func(body []byte) error {
 			select {
@@ -46,7 +44,7 @@ func main() {
 		}
 	}()
 
-	timeout := 5 * time.Minute
+	timeout := 2 * time.Minute
 	timer := time.NewTimer(timeout)
 
 	for {
@@ -84,7 +82,16 @@ func fetchAndDispatch(ctx context.Context, svcs *OnServices, packChan chan<- typ
 	log.Printf("📦 Total de packs encontrados: %d", len(packs))
 
 	for _, pack := range packs {
-		packChan <- pack
+		select {
+		case <-ctx.Done():
+			log.Println("fetchAndDispatch: contexto cancelado, abortando envio de packs")
+			return
+		case packChan <- pack:
+			// enviado com sucesso
+		case <-time.After(2 * time.Second):
+			// evita bloqueio indefinido caso canal esteja cheio; você pode ajustar essa política
+			log.Printf("AVISO: packChan cheio, dropando pack %s", pack.ID)
+		}
 	}
 }
 
@@ -143,7 +150,6 @@ func Connection() *OnServices {
 		case r := <-graphCh:
 			graph = r.svc
 			log.Println("✔ Neo4j conectado.")
-
 		case r := <-mqCh:
 			mq = r.svc
 			log.Println("✔ RabbitMQ conectado.")

@@ -44,13 +44,13 @@ func (s *OrquestradorService) TestConnection() error {
 
 	result, err := session.Run(ctx, "RETURN 'Conexão OK!' AS message", nil)
 	if err != nil {
-		return fmt.Errorf("Erro ao executar query: %v", err)
+		return fmt.Errorf("erro ao executar query: %v", err)
 	}
 
 	if result.Next(ctx) {
 		fmt.Println(result.Record().Values[0])
 	} else if err = result.Err(); err != nil {
-		return fmt.Errorf("Erro ao ler resultado: %v", err)
+		return fmt.Errorf("erro ao ler resultado: %v", err)
 
 	}
 	return nil
@@ -63,71 +63,137 @@ func (s *OrquestradorService) FetchPacks(ctx context.Context) ([]types.Pack, err
 
 	query := `
 	MATCH (p:Pack)
-	OPTIONAL MATCH (p)-[:HAS_SEMAFORO]->(s:Semaforo)-[:CONTROLS_TRAFFIC_ON]->(w:OSMWay)
-	OPTIONAL MATCH (p)-[:HAS_SUBPACK]->(sp:SubPack)-[:HAS_SEMAFORO]->(ss:Semaforo)-[:CONTROLS_TRAFFIC_ON]->(sw:OSMWay)
-	RETURN p.id AS packId,
-	       p.cycle AS cycle,
-	       collect(DISTINCT {id: s.id, wayIds: collect(DISTINCT elementId(w)), priority: sum(w.priority)}) AS semaforos,
-	       collect(DISTINCT {id: sp.id, semaforos: collect(DISTINCT {id: ss.id, wayIds: collect(DISTINCT elementId(sw)), priority: sum(sw.priority)})}) AS subpacks
-	`
 
+		OPTIONAL MATCH (p)-[:HAS_SEMAFORO]->(s:Semaforo)
+		OPTIONAL MATCH (s)-[:CONTROLS_TRAFFIC_ON]->(w:OSMWay)
+		OPTIONAL MATCH (p)-[:HAS_SUBPACK]->(sp:SubPack)
+		OPTIONAL MATCH (sp)-[:HAS_SEMAFORO]->(ss:Semaforo)
+		OPTIONAL MATCH (ss)-[:CONTROLS_TRAFFIC_ON]->(w2:OSMWay)
+
+		WITH p,
+
+			// Semáforos diretos do Pack
+			collect(DISTINCT {
+				id: elementId(s),
+				deviceId: s.deviceId,
+				wayId: elementId(w),
+				priority: w.priority,
+				green_start: s.green_start,
+				green_duration: s.green_duration
+			}) AS packSemaforos,
+
+			collect(DISTINCT sp) AS subpackNodes,
+
+			collect(DISTINCT {
+				spId: elementId(sp),
+				ssId: elementId(ss),
+				deviceId: ss.deviceId,
+				wayId: elementId(w2),
+				priority: w2.priority,
+				green_start: ss.green_start,
+				green_duration: ss.green_duration
+			}) AS subPairs
+
+		WITH p, packSemaforos,
+			[spNode IN subpackNodes |
+				{
+				id: elementId(spNode),
+				name: spNode.name,
+				green_start: spNode.green_start,
+				green_duration: spNode.green_duration,
+				semaforos: [
+					pair IN subPairs
+					WHERE pair.spId = elementId(spNode)
+					| {
+						id: pair.ssId,
+						deviceId: pair.deviceId,
+						wayId: pair.wayId,
+						priority: pair.priority
+
+					}
+				]
+				}
+			] AS subpacks
+
+		RETURN {
+			id: elementId(p),
+			name: p.name,
+			configs: { cicle: p.cicle },
+			semaforos: packSemaforos,
+			subPacks: subpacks
+		} AS pack;
+
+	`
+	log.Println("Antes de session.Run🔥")
 	result, err := session.Run(ctx, query, nil)
 	if err != nil {
+		log.Println("Erro na query🔥")
 		return nil, err
 	}
-
+	log.Println("DEPOIS de session.Run🔥")
 	var packs []types.Pack
 
 	for result.Next(ctx) {
 		record := result.Record()
 
-		packID, _ := record.Get("packId")
-		cycle, _ := record.Get("cicle")
+		packRaw, _ := record.Get("pack")
+		packMap := packRaw.(map[string]interface{})
 
 		pack := types.Pack{
-			ID:    packID.(string),
-			Cycle: utils.ToFloat(cycle),
+			ID:    packMap["id"].(string),
+			Name:  packMap["name"].(string),
+			Cycle: utils.ToFloat(packMap["configs"].(map[string]interface{})["cicle"]),
 		}
 
-		// Semáforos diretos
-		if semaforosRaw, ok := record.Get("semaforos"); ok && semaforosRaw != nil {
-			for _, s := range semaforosRaw.([]interface{}) {
-				sMap := s.(map[string]interface{})
-				wayIds := []string{}
-				for _, w := range sMap["wayIds"].([]interface{}) {
-					wayIds = append(wayIds, w.(string))
+		if sems, ok := packMap["semaforos"].([]interface{}); ok {
+
+			for _, s := range sems {
+				sm := s.(map[string]interface{})
+
+				sem := types.Semaforo{
+					ID:            sm["id"].(string),
+					DeviceId:      sm["deviceId"].(string),
+					WayId:         sm["wayId"].(string),
+					Priority:      utils.ToFloat(sm["priority"]),
+					GreenStart:    utils.ToFloatPtr(sm["green_start"]),
+					GreenDuration: utils.ToFloatPtr(sm["green_duration"]),
 				}
-				pack.Semaforos = append(pack.Semaforos, types.Semaforo{
-					ID:       sMap["id"].(string),
-					WayId:    wayIds,
-					Priority: utils.ToFloat(sMap["priority"]),
-				})
+
+				pack.Semaforos = append(pack.Semaforos, sem)
 			}
 		}
 
-		// Subpacks
-		if subpacksRaw, ok := record.Get("subpacks"); ok && subpacksRaw != nil {
-			for _, sp := range subpacksRaw.([]interface{}) {
-				spMap := sp.(map[string]interface{})
+		if subs, ok := packMap["subPacks"].([]interface{}); ok {
+			for _, sp := range subs {
+				spm := sp.(map[string]interface{})
+
 				subpack := types.SubPack{
-					ID: spMap["id"].(string),
+					ID:            spm["id"].(string),
+					Name:          utils.PtrString(spm["name"]),
+					GreenStart:    utils.ToFloat(spm["green_start"]),
+					GreenDuration: utils.ToFloat(spm["green_duration"]),
 				}
-				for _, ss := range spMap["semaforos"].([]interface{}) {
-					ssMap := ss.(map[string]interface{})
-					wayIds := []string{}
-					for _, w := range ssMap["wayIds"].([]interface{}) {
-						wayIds = append(wayIds, w.(string))
+
+				// Semáforos do SubPack
+				if ssList, ok := spm["semaforos"].([]interface{}); ok {
+					for _, ss := range ssList {
+						ssm := ss.(map[string]interface{})
+
+						sem := types.Semaforo{
+							ID:       ssm["id"].(string),
+							Priority: utils.ToFloat(ssm["priority"]),
+							WayId:    ssm["wayId"].(string),
+							DeviceId: ssm["deviceId"].(string),
+						}
+
+						subpack.Semaforos = append(subpack.Semaforos, sem)
 					}
-					subpack.Semaforos = append(subpack.Semaforos, types.Semaforo{
-						ID:       ssMap["id"].(string),
-						WayId:    wayIds,
-						Priority: utils.ToFloat(ssMap["priority"]),
-					})
 				}
+
 				pack.SubPacks = append(pack.SubPacks, subpack)
 			}
 		}
-
+		fmt.Println("Finalizando")
 		packs = append(packs, pack)
 	}
 

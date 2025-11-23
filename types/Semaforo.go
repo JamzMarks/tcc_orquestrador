@@ -1,9 +1,12 @@
 package types
 
 type Semaforo struct {
-	ID       string
-	WayId    []string
-	Priority float64
+	ID            string
+	DeviceId      string
+	WayId         string
+	Priority      float64
+	GreenStart    *float64
+	GreenDuration *float64
 }
 
 type DistribuicaoSemaforo struct {

@@ -21,7 +21,7 @@ func DistribuirCycleComBlocos(p types.Pack) []Bloco {
 	// 1. Semáforos
 	for _, s := range p.Semaforos {
 		entidades = append(entidades, entidade{
-			DeviceIDs: []string{s.ID},
+			DeviceIDs: []string{s.DeviceId},
 			Priority:  s.Priority,
 		})
 		totalPriority += s.Priority
@@ -35,7 +35,7 @@ func DistribuirCycleComBlocos(p types.Pack) []Bloco {
 
 		var ids []string
 		for _, s := range sp.Semaforos {
-			ids = append(ids, s.ID)
+			ids = append(ids, s.DeviceId)
 		}
 
 		entidades = append(entidades, entidade{
