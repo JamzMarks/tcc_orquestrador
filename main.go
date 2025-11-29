@@ -44,7 +44,7 @@ func main() {
 		}
 	}()
 
-	timeout := 2 * time.Minute
+	timeout := 30 * time.Second
 	timer := time.NewTimer(timeout)
 
 	for {
